@@ -23,19 +23,27 @@ cloudinary.config({
 });
 
 // Configure Multer Storage for Cloudinary
+// Configure Multer Storage for Cloudinary with Clean Public IDs
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
     const isVideo = file.mimetype.startsWith('video/');
+    
+    // Clean original filename: replace non-alphanumeric chars with underscores
+    const cleanFileName = file.originalname
+      .split('.')[0]
+      .replace(/[^a-zA-Z0-9]/g, '_');
+
     return {
       folder: isVideo ? 'vlc_cloud/videos' : 'vlc_cloud/images',
       resource_type: isVideo ? 'video' : 'image',
-      public_id: `${Date.now()}-${file.originalname.replace(/\s+/g, '_').split('.')[0]}`
+      public_id: `${Date.now()}_${cleanFileName}`, // Sanitized public ID without special chars/extensions
+      unique_filename: false,
+      use_filename: false
     };
   }
 });
 const upload = multer({ storage });
-
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
