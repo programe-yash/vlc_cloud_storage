@@ -14,7 +14,7 @@ const SECRET_KEY = process.env.JWT_SECRET || 'vlc-cloud-secret-key-change-this';
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // File-based database paths
 const USERS_FILE = path.join(__dirname, 'users.json');
@@ -56,7 +56,6 @@ function authenticateToken(req, res, next) {
 
 // ----------------- AUTHENTICATION API -----------------
 
-// Register New User
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
@@ -73,7 +72,6 @@ app.post('/api/register', async (req, res) => {
   res.json({ success: true, message: 'Registration successful! You can now log in.' });
 });
 
-// Login User
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   const users = readData(USERS_FILE);
@@ -92,7 +90,6 @@ app.post('/api/login', async (req, res) => {
   res.status(401).json({ error: 'Invalid username or password' });
 });
 
-// Check Auth Status
 app.get('/api/check-auth', (req, res) => {
   const token = req.cookies.vlc_auth_token;
   if (!token) return res.json({ authenticated: false });
@@ -103,13 +100,12 @@ app.get('/api/check-auth', (req, res) => {
   });
 });
 
-// Logout User
 app.post('/api/logout', (req, res) => {
   res.clearCookie('vlc_auth_token');
   res.json({ success: true });
 });
 
-// ----------------- MEDIA & FILE HANDLING API -----------------
+// ----------------- PRIVATE FILE HANDLING API -----------------
 
 // Upload File Endpoint
 app.post('/upload', authenticateToken, upload.single('mediaFile'), (req, res) => {
@@ -130,18 +126,19 @@ app.post('/upload', authenticateToken, upload.single('mediaFile'), (req, res) =>
   res.json({ message: 'File uploaded successfully!' });
 });
 
-// Get Files List
+// Get User's Own Files Only
 app.get('/api/files', authenticateToken, (req, res) => {
   const metadata = readData(METADATA_FILE);
 
+  // Filter so users ONLY see files they uploaded
   const formatList = (type) => metadata
-    .filter(f => f.type === type)
+    .filter(f => f.type === type && f.uploadedBy === req.user.username)
     .map(f => ({
       filename: f.filename,
       originalName: f.originalName,
       uploadedBy: f.uploadedBy,
       url: `/media/${type}/${encodeURIComponent(f.filename)}`,
-      canDelete: f.uploadedBy === req.user.username
+      canDelete: true
     }));
 
   res.json({
@@ -162,7 +159,7 @@ app.delete('/api/files/:type/:filename', authenticateToken, (req, res) => {
 
   // Restrict deletion to owner
   if (fileRecord.uploadedBy !== req.user.username) {
-    return res.status(403).json({ error: 'Permission denied. You can only delete files you uploaded.' });
+    return res.status(403).json({ error: 'Permission denied.' });
   }
 
   // Remove file from disk
@@ -178,8 +175,16 @@ app.delete('/api/files/:type/:filename', authenticateToken, (req, res) => {
   res.json({ success: true, message: 'File deleted successfully' });
 });
 
-// Stream Video Endpoint (HTTP 206 Partial Content Streaming)
+// Secure Private Stream Route (HTTP 206)
 app.get('/media/videos/:filename', authenticateToken, (req, res) => {
+  const metadata = readData(METADATA_FILE);
+  const fileRecord = metadata.find(f => f.filename === req.params.filename && f.type === 'videos');
+
+  // Verify ownership before serving stream
+  if (!fileRecord || fileRecord.uploadedBy !== req.user.username) {
+    return res.status(403).send('Access denied. You do not own this media.');
+  }
+
   const filePath = path.join(__dirname, 'uploads/videos', req.params.filename);
   if (!fs.existsSync(filePath)) return res.status(404).send('Video not found.');
 
@@ -210,9 +215,22 @@ app.get('/media/videos/:filename', authenticateToken, (req, res) => {
   }
 });
 
-// Serve Static Images
-app.use('/media/images', authenticateToken, express.static(path.join(__dirname, 'uploads/images')));
+// Secure Private Images Route
+app.get('/media/images/:filename', authenticateToken, (req, res) => {
+  const metadata = readData(METADATA_FILE);
+  const fileRecord = metadata.find(f => f.filename === req.params.filename && f.type === 'images');
+
+  // Verify ownership before serving image
+  if (!fileRecord || fileRecord.uploadedBy !== req.user.username) {
+    return res.status(403).send('Access denied. You do not own this media.');
+  }
+
+  const filePath = path.join(__dirname, 'uploads/images', req.params.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).send('Image not found.');
+
+  res.sendFile(filePath);
+});
 
 app.listen(PORT, () => {
-  console.log(`Express VLC Cloud Storage running on port ${PORT}`);
+  console.log(`Express Private VLC Cloud Storage running on port ${PORT}`);
 });
