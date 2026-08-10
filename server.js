@@ -6,44 +6,11 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const archiver = require('archiver');
-const https = require('https');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.JWT_SECRET || 'vlc-cloud-secret-key-change-this';
 
-// Configure Cloudinary (Set environment variables on Render dashboard)
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'kxbsvbas',
-  api_key: process.env.CLOUDINARY_API_KEY || '571376857467779',
-  api_secret: process.env.CLOUDINARY_API_SECRET || '**********'
-});
-
-// Configure Multer Storage for Cloudinary
-// Configure Multer Storage for Cloudinary with Clean Public IDs
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: async (req, file) => {
-    const isVideo = file.mimetype.startsWith('video/');
-    
-    // Clean original filename: replace non-alphanumeric chars with underscores
-    const cleanFileName = file.originalname
-      .split('.')[0]
-      .replace(/[^a-zA-Z0-9]/g, '_');
-
-    return {
-      folder: isVideo ? 'vlc_cloud/videos' : 'vlc_cloud/images',
-      resource_type: isVideo ? 'video' : 'image',
-      public_id: `${Date.now()}_${cleanFileName}`, // Sanitized public ID without special chars/extensions
-      unique_filename: false,
-      use_filename: false
-    };
-  }
-});
-const upload = multer({ storage });
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
@@ -55,6 +22,24 @@ const METADATA_FILE = path.join(__dirname, 'file-metadata.json');
 
 const readData = (filePath) => fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : [];
 const writeData = (filePath, data) => fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+
+// Ensure upload directories exist
+['uploads/videos', 'uploads/images'].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+// Multer Storage Configuration
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) cb(null, 'uploads/videos');
+    else if (file.mimetype.startsWith('image/')) cb(null, 'uploads/images');
+    else cb(new Error('Invalid file type'), false);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`);
+  }
+});
+const upload = multer({ storage });
 
 // JWT Authentication Middleware
 function authenticateToken(req, res, next) {
@@ -119,54 +104,42 @@ app.post('/api/logout', (req, res) => {
   res.json({ success: true });
 });
 
-// ----------------- MEDIA & BATCH OPERATIONS API -----------------
+// ----------------- MULTI-FILE MEDIA HANDLING API -----------------
 
-// Multi-file Upload Endpoint with Detailed Error Logging
-app.post('/upload', authenticateToken, (req, res) => {
-  upload.array('mediaFiles', 20)(req, res, (err) => {
-    if (err) {
-      console.error('Upload Error Details:', err);
-      return res.status(500).json({ error: err.message || 'Cloudinary upload failed' });
-    }
+// Multi-file Upload Endpoint
+app.post('/upload', authenticateToken, upload.array('mediaFiles', 20), (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'No files uploaded.' });
+  }
 
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded.' });
-    }
+  const metadata = readData(METADATA_FILE);
 
-    const metadata = readData(METADATA_FILE);
-
-    req.files.forEach(file => {
-      const isVideo = file.mimetype.startsWith('video/');
-      metadata.push({
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        filename: file.filename,
-        originalName: file.originalname,
-        uploadedBy: req.user.username,
-        type: isVideo ? 'videos' : 'images',
-        url: file.path,
-        size: file.size,
-        publicId: file.filename,
-        uploadDate: new Date().toISOString()
-      });
+  req.files.forEach(file => {
+    const fileType = file.mimetype.startsWith('video/') ? 'videos' : 'images';
+    metadata.push({
+      filename: file.filename,
+      originalName: file.originalname,
+      uploadedBy: req.user.username,
+      type: fileType,
+      uploadDate: new Date().toISOString()
     });
-
-    writeData(METADATA_FILE, metadata);
-    res.json({ message: `${req.files.length} file(s) uploaded successfully!` });
   });
+
+  writeData(METADATA_FILE, metadata);
+  res.json({ message: `${req.files.length} file(s) uploaded successfully!` });
 });
-// Fetch User's Private Files
+
+// Get User's Own Files Only
 app.get('/api/files', authenticateToken, (req, res) => {
   const metadata = readData(METADATA_FILE);
 
   const formatList = (type) => metadata
     .filter(f => f.type === type && f.uploadedBy === req.user.username)
     .map(f => ({
-      id: f.id,
+      filename: f.filename,
       originalName: f.originalName,
       uploadedBy: f.uploadedBy,
-      url: f.url,
-      size: f.size || 0,
-      uploadDate: f.uploadDate,
+      url: `/media/${type}/${encodeURIComponent(f.filename)}`,
       canDelete: true
     }));
 
@@ -176,12 +149,12 @@ app.get('/api/files', authenticateToken, (req, res) => {
   });
 });
 
-// Delete Single File Endpoint
-app.delete('/api/files/:id', authenticateToken, async (req, res) => {
-  const { id } = req.params;
+// Delete File Endpoint
+app.delete('/api/files/:type/:filename', authenticateToken, (req, res) => {
+  const { type, filename } = req.params;
   const metadata = readData(METADATA_FILE);
 
-  const fileIndex = metadata.findIndex(f => f.id === id);
+  const fileIndex = metadata.findIndex(f => f.filename === filename && f.type === type);
   if (fileIndex === -1) return res.status(404).json({ error: 'File not found' });
 
   const fileRecord = metadata[fileIndex];
@@ -190,71 +163,71 @@ app.delete('/api/files/:id', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Permission denied.' });
   }
 
-  try {
-    const resourceType = fileRecord.type === 'videos' ? 'video' : 'image';
-    await cloudinary.uploader.destroy(fileRecord.publicId, { resource_type: resourceType });
-    
-    metadata.splice(fileIndex, 1);
-    writeData(METADATA_FILE, metadata);
-
-    res.json({ success: true, message: 'File deleted successfully' });
-  } catch (err) {
-    res.status(500).json({ error: 'Cloud deletion failed: ' + err.message });
-  }
-});
-
-// Batch Delete Endpoint
-app.post('/api/files/batch-delete', authenticateToken, async (req, res) => {
-  const { ids } = req.body;
-  if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'Invalid payload' });
-
-  let metadata = readData(METADATA_FILE);
-  const filesToDelete = metadata.filter(f => ids.includes(f.id) && f.uploadedBy === req.user.username);
-
-  for (const file of filesToDelete) {
-    try {
-      const resourceType = file.type === 'videos' ? 'video' : 'image';
-      await cloudinary.uploader.destroy(file.publicId, { resource_type: resourceType });
-    } catch (e) {
-      console.error(`Cloudinary deletion error for ${file.publicId}:`, e);
-    }
+  const filePath = path.join(__dirname, 'uploads', type, filename);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
   }
 
-  metadata = metadata.filter(f => !(ids.includes(f.id) && f.uploadedBy === req.user.username));
+  metadata.splice(fileIndex, 1);
   writeData(METADATA_FILE, metadata);
 
-  res.json({ success: true, message: 'Batch deletion completed' });
+  res.json({ success: true, message: 'File deleted successfully' });
 });
 
-// Batch Download as ZIP
-app.post('/api/files/batch-download', authenticateToken, (req, res) => {
-  const { ids } = req.body;
+// Secure Private Video Stream Route
+app.get('/media/videos/:filename', authenticateToken, (req, res) => {
   const metadata = readData(METADATA_FILE);
-  const filesToDownload = metadata.filter(f => ids.includes(f.id) && f.uploadedBy === req.user.username);
+  const fileRecord = metadata.find(f => f.filename === req.params.filename && f.type === 'videos');
 
-  if (filesToDownload.length === 0) {
-    return res.status(400).json({ error: 'No valid files selected' });
+  if (!fileRecord || fileRecord.uploadedBy !== req.user.username) {
+    return res.status(403).send('Access denied. You do not own this media.');
   }
 
-  res.attachment('vlc-cloud-media.zip');
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.pipe(res);
+  const filePath = path.join(__dirname, 'uploads/videos', req.params.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).send('Video not found.');
 
-  let fetchedCount = 0;
-  filesToDownload.forEach(file => {
-    https.get(file.url, (stream) => {
-      archive.append(stream, { name: file.originalName });
-      fetchedCount++;
-      if (fetchedCount === filesToDownload.length) {
-        archive.finalize();
-      }
-    }).on('error', () => {
-      fetchedCount++;
-      if (fetchedCount === filesToDownload.length) archive.finalize();
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunksize = (end - start) + 1;
+    const file = fs.createReadStream(filePath, { start, end });
+    
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunksize,
+      'Content-Type': 'video/mp4',
     });
-  });
+    file.pipe(res);
+  } else {
+    res.writeHead(200, {
+      'Content-Length': fileSize,
+      'Content-Type': 'video/mp4',
+    });
+    fs.createReadStream(filePath).pipe(res);
+  }
+});
+
+// Secure Private Images Route
+app.get('/media/images/:filename', authenticateToken, (req, res) => {
+  const metadata = readData(METADATA_FILE);
+  const fileRecord = metadata.find(f => f.filename === req.params.filename && f.type === 'images');
+
+  if (!fileRecord || fileRecord.uploadedBy !== req.user.username) {
+    return res.status(403).send('Access denied. You do not own this media.');
+  }
+
+  const filePath = path.join(__dirname, 'uploads/images', req.params.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).send('Image not found.');
+
+  res.sendFile(filePath);
 });
 
 app.listen(PORT, () => {
-  console.log(`VLC Cloud Storage server active on port ${PORT}`);
+  console.log(`Express Multi-Upload VLC Cloud Storage running on port ${PORT}`);
 });
