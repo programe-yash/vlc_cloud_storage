@@ -6,6 +6,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const archiver = require('archiver');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,20 +24,21 @@ const METADATA_FILE = path.join(__dirname, 'file-metadata.json');
 const readData = (filePath) => fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, 'utf8')) : [];
 const writeData = (filePath, data) => fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 
-// Ensure upload directories exist
+// Ensure upload directories exist on disk
 ['uploads/videos', 'uploads/images'].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// Multer Storage Configuration
+// Multer Storage Configuration (Local Disk Storage)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     if (file.mimetype.startsWith('video/')) cb(null, 'uploads/videos');
     else if (file.mimetype.startsWith('image/')) cb(null, 'uploads/images');
-    else cb(new Error('Invalid file type'), false);
+    else cb(new Error('Invalid file type. Only videos and images are allowed.'), false);
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`);
+    const cleanName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    cb(null, `${Date.now()}-${cleanName}`);
   }
 });
 const upload = multer({ storage });
@@ -104,7 +106,7 @@ app.post('/api/logout', (req, res) => {
   res.json({ success: true });
 });
 
-// ----------------- MULTI-FILE MEDIA HANDLING API -----------------
+// ----------------- MEDIA & FILE HANDLING API -----------------
 
 // Multi-file Upload Endpoint
 app.post('/upload', authenticateToken, upload.array('mediaFiles', 20), (req, res) => {
@@ -115,12 +117,14 @@ app.post('/upload', authenticateToken, upload.array('mediaFiles', 20), (req, res
   const metadata = readData(METADATA_FILE);
 
   req.files.forEach(file => {
-    const fileType = file.mimetype.startsWith('video/') ? 'videos' : 'images';
+    const isVideo = file.mimetype.startsWith('video/');
     metadata.push({
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       filename: file.filename,
       originalName: file.originalname,
       uploadedBy: req.user.username,
-      type: fileType,
+      type: isVideo ? 'videos' : 'images',
+      size: file.size,
       uploadDate: new Date().toISOString()
     });
   });
@@ -129,17 +133,20 @@ app.post('/upload', authenticateToken, upload.array('mediaFiles', 20), (req, res
   res.json({ message: `${req.files.length} file(s) uploaded successfully!` });
 });
 
-// Get User's Own Files Only
+// Fetch User's Private Files
 app.get('/api/files', authenticateToken, (req, res) => {
   const metadata = readData(METADATA_FILE);
 
   const formatList = (type) => metadata
     .filter(f => f.type === type && f.uploadedBy === req.user.username)
     .map(f => ({
+      id: f.id,
       filename: f.filename,
       originalName: f.originalName,
       uploadedBy: f.uploadedBy,
       url: `/media/${type}/${encodeURIComponent(f.filename)}`,
+      size: f.size || 0,
+      uploadDate: f.uploadDate,
       canDelete: true
     }));
 
@@ -149,12 +156,12 @@ app.get('/api/files', authenticateToken, (req, res) => {
   });
 });
 
-// Delete File Endpoint
-app.delete('/api/files/:type/:filename', authenticateToken, (req, res) => {
-  const { type, filename } = req.params;
+// Delete Single File Endpoint
+app.delete('/api/files/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
   const metadata = readData(METADATA_FILE);
 
-  const fileIndex = metadata.findIndex(f => f.filename === filename && f.type === type);
+  const fileIndex = metadata.findIndex(f => f.id === id);
   if (fileIndex === -1) return res.status(404).json({ error: 'File not found' });
 
   const fileRecord = metadata[fileIndex];
@@ -163,7 +170,8 @@ app.delete('/api/files/:type/:filename', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Permission denied.' });
   }
 
-  const filePath = path.join(__dirname, 'uploads', type, filename);
+  // Delete from local disk
+  const filePath = path.join(__dirname, 'uploads', fileRecord.type, fileRecord.filename);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
   }
@@ -174,7 +182,52 @@ app.delete('/api/files/:type/:filename', authenticateToken, (req, res) => {
   res.json({ success: true, message: 'File deleted successfully' });
 });
 
-// Secure Private Video Stream Route
+// Batch Delete Endpoint
+app.post('/api/files/batch-delete', authenticateToken, (req, res) => {
+  const { ids } = req.body;
+  if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'Invalid payload' });
+
+  let metadata = readData(METADATA_FILE);
+  const filesToDelete = metadata.filter(f => ids.includes(f.id) && f.uploadedBy === req.user.username);
+
+  filesToDelete.forEach(file => {
+    const filePath = path.join(__dirname, 'uploads', file.type, file.filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  });
+
+  metadata = metadata.filter(f => !(ids.includes(f.id) && f.uploadedBy === req.user.username));
+  writeData(METADATA_FILE, metadata);
+
+  res.json({ success: true, message: 'Batch deletion completed' });
+});
+
+// Batch Download as ZIP
+app.post('/api/files/batch-download', authenticateToken, (req, res) => {
+  const { ids } = req.body;
+  const metadata = readData(METADATA_FILE);
+  const filesToDownload = metadata.filter(f => ids.includes(f.id) && f.uploadedBy === req.user.username);
+
+  if (filesToDownload.length === 0) {
+    return res.status(400).json({ error: 'No valid files selected' });
+  }
+
+  res.attachment('vlc-cloud-media.zip');
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  archive.pipe(res);
+
+  filesToDownload.forEach(file => {
+    const filePath = path.join(__dirname, 'uploads', file.type, file.filename);
+    if (fs.existsSync(filePath)) {
+      archive.file(filePath, { name: file.originalName });
+    }
+  });
+
+  archive.finalize();
+});
+
+// Stream Video Route (HTTP 206 Partial Content Streaming)
 app.get('/media/videos/:filename', authenticateToken, (req, res) => {
   const metadata = readData(METADATA_FILE);
   const fileRecord = metadata.find(f => f.filename === req.params.filename && f.type === 'videos');
@@ -213,7 +266,7 @@ app.get('/media/videos/:filename', authenticateToken, (req, res) => {
   }
 });
 
-// Secure Private Images Route
+// Serve Images Route
 app.get('/media/images/:filename', authenticateToken, (req, res) => {
   const metadata = readData(METADATA_FILE);
   const fileRecord = metadata.find(f => f.filename === req.params.filename && f.type === 'images');
@@ -229,5 +282,5 @@ app.get('/media/images/:filename', authenticateToken, (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Express Multi-Upload VLC Cloud Storage running on port ${PORT}`);
+  console.log(`VLC Cloud Storage server active on port ${PORT}`);
 });
