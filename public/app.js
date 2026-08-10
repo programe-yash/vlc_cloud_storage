@@ -145,7 +145,8 @@ function uploadFilesBatch(files) {
       fileInput.value = '';
       loadMedia();
     } else {
-      alert('Upload failed!');
+      const errResponse = JSON.parse(xhr.responseText || '{}');
+      alert('Upload failed: ' + (errResponse.error || xhr.statusText));
       closeUploadOverlay();
     }
   });

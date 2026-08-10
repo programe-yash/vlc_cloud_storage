@@ -113,33 +113,39 @@ app.post('/api/logout', (req, res) => {
 
 // ----------------- MEDIA & BATCH OPERATIONS API -----------------
 
-// Multi-file Upload Endpoint (Cloudinary Permanent Storage)
-app.post('/upload', authenticateToken, upload.array('mediaFiles', 20), (req, res) => {
-  if (!req.files || req.files.length === 0) {
-    return res.status(400).json({ error: 'No files uploaded.' });
-  }
+// Multi-file Upload Endpoint with Detailed Error Logging
+app.post('/upload', authenticateToken, (req, res) => {
+  upload.array('mediaFiles', 20)(req, res, (err) => {
+    if (err) {
+      console.error('Upload Error Details:', err);
+      return res.status(500).json({ error: err.message || 'Cloudinary upload failed' });
+    }
 
-  const metadata = readData(METADATA_FILE);
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded.' });
+    }
 
-  req.files.forEach(file => {
-    const isVideo = file.mimetype.startsWith('video/');
-    metadata.push({
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      filename: file.filename,
-      originalName: file.originalname,
-      uploadedBy: req.user.username,
-      type: isVideo ? 'videos' : 'images',
-      url: file.path,
-      size: file.size,
-      publicId: file.filename,
-      uploadDate: new Date().toISOString()
+    const metadata = readData(METADATA_FILE);
+
+    req.files.forEach(file => {
+      const isVideo = file.mimetype.startsWith('video/');
+      metadata.push({
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        filename: file.filename,
+        originalName: file.originalname,
+        uploadedBy: req.user.username,
+        type: isVideo ? 'videos' : 'images',
+        url: file.path,
+        size: file.size,
+        publicId: file.filename,
+        uploadDate: new Date().toISOString()
+      });
     });
+
+    writeData(METADATA_FILE, metadata);
+    res.json({ message: `${req.files.length} file(s) uploaded successfully!` });
   });
-
-  writeData(METADATA_FILE, metadata);
-  res.json({ message: `${req.files.length} file(s) uploaded successfully!` });
 });
-
 // Fetch User's Private Files
 app.get('/api/files', authenticateToken, (req, res) => {
   const metadata = readData(METADATA_FILE);
