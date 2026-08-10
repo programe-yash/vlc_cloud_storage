@@ -12,6 +12,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.JWT_SECRET || 'vlc-cloud-secret-key-change-this';
 
+// Strict Content Security Policy Header (No unsafe-eval)
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob:; img-src 'self' data: blob:;"
+  );
+  next();
+});
+
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
@@ -170,7 +179,6 @@ app.delete('/api/files/:id', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Permission denied.' });
   }
 
-  // Delete from local disk
   const filePath = path.join(__dirname, 'uploads', fileRecord.type, fileRecord.filename);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);

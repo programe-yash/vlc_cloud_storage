@@ -10,6 +10,32 @@ const dropZone = document.getElementById('dropZone');
 const dragHint = document.getElementById('dragDropHint');
 const speedControls = document.getElementById('speedControls');
 
+// Bind Event Listeners Dynamically (Strict CSP / No Inline Handlers)
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('tabLoginBtn').addEventListener('click', () => toggleAuthTab('login'));
+  document.getElementById('tabRegisterBtn').addEventListener('click', () => toggleAuthTab('register'));
+  document.getElementById('authSubmitBtn').addEventListener('click', handleAuth);
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+  document.getElementById('closeUploadBtn').addEventListener('click', closeUploadOverlay);
+
+  document.getElementById('btnVideos').addEventListener('click', () => switchTab('videos'));
+  document.getElementById('btnImages').addEventListener('click', () => switchTab('images'));
+
+  document.getElementById('searchInput').addEventListener('input', renderPlaylist);
+  document.getElementById('sortSelect').addEventListener('change', renderPlaylist);
+
+  document.getElementById('selectAllCheckbox').addEventListener('change', (e) => toggleSelectAll(e.target));
+  document.getElementById('batchDownloadBtn').addEventListener('click', batchDownloadSelected);
+  document.getElementById('batchDeleteBtn').addEventListener('click', batchDeleteSelected);
+
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const speed = parseFloat(e.target.getAttribute('data-speed'));
+      setPlaybackSpeed(speed);
+    });
+  });
+});
+
 // Resume Playback Memory Tracker
 videoPlayer.addEventListener('timeupdate', () => {
   if (currentPlayingUrl && videoPlayer.currentTime > 0) {

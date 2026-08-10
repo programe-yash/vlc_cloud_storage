@@ -16,13 +16,13 @@
       </div>
 
       <div class="auth-tabs">
-        <button id="tabLoginBtn" class="active" onclick="toggleAuthTab('login')">Login</button>
-        <button id="tabRegisterBtn" onclick="toggleAuthTab('register')">Register</button>
+        <button id="tabLoginBtn" class="active">Login</button>
+        <button id="tabRegisterBtn">Register</button>
       </div>
 
       <input type="text" id="userInput" placeholder="Username" autocomplete="off">
       <input type="password" id="passwordInput" placeholder="Password">
-      <button id="authSubmitBtn" onclick="handleAuth()">Login</button>
+      <button id="authSubmitBtn">Login</button>
 
       <p id="errorMsg" class="error-msg"></p>
       <p id="successMsg" class="success-msg"></p>
@@ -48,7 +48,7 @@
 
       <div id="fileListProgress" class="file-list-progress"></div>
       
-      <button id="closeUploadBtn" class="hidden" onclick="closeUploadOverlay()">Done</button>
+      <button id="closeUploadBtn" class="hidden">Done</button>
     </div>
   </div>
 
@@ -67,7 +67,7 @@
           ⬆ Upload Batch
           <input type="file" id="fileInput" accept="video/*,image/*" multiple hidden>
         </label>
-        <button class="logout-btn" onclick="logout()">Logout</button>
+        <button id="logoutBtn" class="logout-btn">Logout</button>
       </div>
     </header>
 
@@ -76,14 +76,14 @@
       <video id="vlcPlayer" class="active-media" controls></video>
       <img id="vlcImageViewer" class="active-media hidden" alt="Selected Media">
       
-      <!-- Custom Speed Control Overlay -->
+      <!-- Custom Speed Control Overlay (No inline handlers) -->
       <div id="speedControls" class="speed-controls hidden">
         <span>Speed:</span>
-        <button onclick="setPlaybackSpeed(0.5)">0.5x</button>
-        <button onclick="setPlaybackSpeed(1.0)">1.0x</button>
-        <button onclick="setPlaybackSpeed(1.25)">1.25x</button>
-        <button onclick="setPlaybackSpeed(1.5)">1.5x</button>
-        <button onclick="setPlaybackSpeed(2.0)">2.0x</button>
+        <button class="speed-btn" data-speed="0.5">0.5x</button>
+        <button class="speed-btn" data-speed="1.0">1.0x</button>
+        <button class="speed-btn" data-speed="1.25">1.25x</button>
+        <button class="speed-btn" data-speed="1.5">1.5x</button>
+        <button class="speed-btn" data-speed="2.0">2.0x</button>
       </div>
 
       <div id="dragDropHint" class="drag-hint hidden">Drop media files here to upload</div>
@@ -93,13 +93,13 @@
     <section class="vlc-playlist-section">
       <div class="playlist-header-controls">
         <div class="tabs">
-          <button class="tab-btn active" id="btnVideos" onclick="switchTab('videos')">🎬 Videos</button>
-          <button class="tab-btn" id="btnImages" onclick="switchTab('images')">🖼 Images</button>
+          <button class="tab-btn active" id="btnVideos">🎬 Videos</button>
+          <button class="tab-btn" id="btnImages">🖼 Images</button>
         </div>
 
         <div class="search-sort-bar">
-          <input type="text" id="searchInput" placeholder="🔍 Search media..." oninput="renderPlaylist()">
-          <select id="sortSelect" onchange="renderPlaylist()">
+          <input type="text" id="searchInput" placeholder="🔍 Search media...">
+          <select id="sortSelect">
             <option value="date-desc">Newest First</option>
             <option value="date-asc">Oldest First</option>
             <option value="name-asc">Name (A-Z)</option>
@@ -110,10 +110,10 @@
 
       <!-- Bulk Actions Bar -->
       <div class="batch-actions-bar">
-        <label><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"> Select All</label>
+        <label><input type="checkbox" id="selectAllCheckbox"> Select All</label>
         <div class="batch-buttons">
-          <button onclick="batchDownloadSelected()">⬇ Download ZIP</button>
-          <button class="danger-btn" onclick="batchDeleteSelected()">🗑 Delete Selected</button>
+          <button id="batchDownloadBtn">⬇ Download ZIP</button>
+          <button id="batchDeleteBtn" class="danger-btn">🗑 Delete Selected</button>
         </div>
       </div>
 
