@@ -1,0 +1,224 @@
+:root {
+  --vlc-orange: #ff8800;
+  --vlc-dark-bg: #1e1e1e;
+  --vlc-panel: #2a2a2a;
+  --vlc-border: #3d3d3d;
+  --vlc-text: #e0e0e0;
+}
+
+body {
+  margin: 0;
+  background-color: #121212;
+  color: var(--vlc-text);
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+}
+
+.vlc-container {
+  width: 100%;
+  max-width: 900px;
+  background-color: var(--vlc-dark-bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--vlc-border);
+  border-right: 1px solid var(--vlc-border);
+}
+
+.vlc-header {
+  background-color: var(--vlc-panel);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--vlc-orange);
+}
+
+.vlc-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: bold;
+  color: var(--vlc-orange);
+}
+
+.cone {
+  width: 0; height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 20px solid var(--vlc-orange);
+}
+
+.upload-btn {
+  background: var(--vlc-orange);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.vlc-viewport {
+  width: 100%;
+  height: 400px;
+  background: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.active-media {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.hidden { display: none !important; }
+
+.vlc-playlist-section {
+  padding: 15px;
+  background: var(--vlc-panel);
+  flex: 1;
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tab-btn {
+  background: #333;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.tab-btn.active {
+  background: var(--vlc-orange);
+}
+
+.playlist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.playlist li {
+  padding: 10px;
+  background: #252525;
+  border-bottom: 1px solid var(--vlc-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-info {
+  cursor: pointer;
+  flex: 1;
+}
+
+.uploader-tag {
+  font-size: 0.75rem;
+  color: #888;
+  margin-left: 8px;
+}
+
+.delete-btn {
+  background: #cc2222;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.delete-btn:hover { background: #ff3333; }
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--vlc-panel);
+  padding: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--vlc-orange);
+  text-align: center;
+  width: 90%;
+  max-width: 350px;
+}
+
+.modal-content input {
+  width: 90%;
+  padding: 10px;
+  margin: 8px 0;
+  border-radius: 4px;
+  border: 1px solid var(--vlc-border);
+  background: #111;
+  color: white;
+}
+
+.modal-content button {
+  background: var(--vlc-orange);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.auth-tabs {
+  display: flex;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--vlc-border);
+}
+
+.auth-tabs button {
+  flex: 1;
+  background: transparent;
+  color: #888;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.auth-tabs button.active {
+  color: var(--vlc-orange);
+  border-bottom: 2px solid var(--vlc-orange);
+}
+
+.user-info {
+  font-size: 0.9rem;
+  color: #ccc;
+  font-weight: bold;
+}
+
+.logout-btn {
+  background: #444;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+.header-actions { display: flex; align-items: center; }
+.error-msg { color: #ff4444; font-size: 0.9rem; margin-top: 10px; }
+.success-msg { color: #44ff44; font-size: 0.9rem; margin-top: 10px; }
