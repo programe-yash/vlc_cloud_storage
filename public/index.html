@@ -1,54 +1,67 @@
-VLC Web Cloud Storage
-  
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VLC Web Cloud Storage</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Authentication Portal Modal -->
+  <div id="loginModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="vlc-logo">
+        <div class="cone"></div>
+        <span>VLC Media Cloud</span>
+      </div>
 
+      <div class="auth-tabs">
+        <button id="tabLoginBtn" class="active" onclick="toggleAuthTab('login')">Login</button>
+        <button id="tabRegisterBtn" onclick="toggleAuthTab('register')">Register</button>
+      </div>
 
-  
-  
-    
-      
-        
-        VLC Media Cloud
-      
+      <input type="text" id="userInput" placeholder="Username" autocomplete="off">
+      <input type="password" id="passwordInput" placeholder="Password">
+      <button id="authSubmitBtn" onclick="handleAuth()">Login</button>
 
-      
-        Login
-        Register
-      
+      <p id="errorMsg" class="error-msg"></p>
+      <p id="successMsg" class="success-msg"></p>
+    </div>
+  </div>
 
-      
-      
-      Login
-
-      
-      
-    
-  
-
-  
-  
-    
-      
-        
-        VLC Cloud
-      
-      
-        👤 
-      
-      
-        
+  <!-- VLC Main Interface Container -->
+  <div class="vlc-container hidden" id="mainContent">
+    <header class="vlc-header">
+      <div class="vlc-logo">
+        <div class="cone"></div>
+        <span>VLC Cloud</span>
+      </div>
+      <div class="user-info">
+        👤 <span id="currentUser"></span>
+      </div>
+      <div class="header-actions">
+        <label class="upload-btn">
           ⬆ Upload Media
-          
-        
-        Logout
-      
-    
+          <input type="file" id="fileInput" accept="video/*,image/*" hidden>
+        </label>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+      </div>
+    </header>
 
-    
-      
-      
-    
+    <main class="vlc-viewport">
+      <video id="vlcPlayer" class="active-media" controls></video>
+      <img id="vlcImageViewer" class="active-media hidden" alt="Selected Media">
+    </main>
 
-    
-      
-        🎬 Videos
-        🖼 Images
+    <section class="vlc-playlist-section">
+      <div class="tabs">
+        <button class="tab-btn active" id="btnVideos" onclick="switchTab('videos')">🎬 Videos</button>
+        <button class="tab-btn" id="btnImages" onclick="switchTab('images')">🖼 Images</button>
+      </div>
+      <ul id="mediaList" class="playlist"></ul>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
