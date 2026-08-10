@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <!-- Authentication Portal Modal -->
+  <!-- Auth Modal -->
   <div id="loginModal" class="modal-overlay">
     <div class="modal-content">
       <div class="vlc-logo">
@@ -29,7 +29,30 @@
     </div>
   </div>
 
-  <!-- VLC Main Interface Container -->
+  <!-- Real-Time Upload Progress Status Overlay -->
+  <div id="uploadStatusModal" class="upload-status-overlay hidden">
+    <div class="upload-status-card">
+      <div class="upload-header">
+        <span>⬆ Uploading Media Batch...</span>
+        <span id="uploadPercentage">0%</span>
+      </div>
+      
+      <div class="progress-bar-container">
+        <div id="overallProgressBar" class="progress-bar-fill"></div>
+      </div>
+      
+      <div id="uploadDetails" class="upload-details">
+        <span id="uploadSpeed">0 KB/s</span>
+        <span id="uploadCount">0 / 0 Files</span>
+      </div>
+
+      <div id="fileListProgress" class="file-list-progress"></div>
+      
+      <button id="closeUploadBtn" class="hidden" onclick="closeUploadOverlay()">Done</button>
+    </div>
+  </div>
+
+  <!-- Main VLC Interface -->
   <div class="vlc-container hidden" id="mainContent">
     <header class="vlc-header">
       <div class="vlc-logo">
@@ -41,23 +64,59 @@
       </div>
       <div class="header-actions">
         <label class="upload-btn">
-          ⬆ Upload Media
-          <input type="file" id="fileInput" accept="video/*,image/*" hidden>
+          ⬆ Upload Batch
+          <input type="file" id="fileInput" accept="video/*,image/*" multiple hidden>
         </label>
         <button class="logout-btn" onclick="logout()">Logout</button>
       </div>
     </header>
 
-    <main class="vlc-viewport">
+    <!-- VLC Viewport with Speed Controls -->
+    <main class="vlc-viewport" id="dropZone">
       <video id="vlcPlayer" class="active-media" controls></video>
       <img id="vlcImageViewer" class="active-media hidden" alt="Selected Media">
+      
+      <!-- Custom Speed Control Overlay -->
+      <div id="speedControls" class="speed-controls hidden">
+        <span>Speed:</span>
+        <button onclick="setPlaybackSpeed(0.5)">0.5x</button>
+        <button onclick="setPlaybackSpeed(1.0)">1.0x</button>
+        <button onclick="setPlaybackSpeed(1.25)">1.25x</button>
+        <button onclick="setPlaybackSpeed(1.5)">1.5x</button>
+        <button onclick="setPlaybackSpeed(2.0)">2.0x</button>
+      </div>
+
+      <div id="dragDropHint" class="drag-hint hidden">Drop media files here to upload</div>
     </main>
 
+    <!-- Playlist Controls, Search & Batch Action Bar -->
     <section class="vlc-playlist-section">
-      <div class="tabs">
-        <button class="tab-btn active" id="btnVideos" onclick="switchTab('videos')">🎬 Videos</button>
-        <button class="tab-btn" id="btnImages" onclick="switchTab('images')">🖼 Images</button>
+      <div class="playlist-header-controls">
+        <div class="tabs">
+          <button class="tab-btn active" id="btnVideos" onclick="switchTab('videos')">🎬 Videos</button>
+          <button class="tab-btn" id="btnImages" onclick="switchTab('images')">🖼 Images</button>
+        </div>
+
+        <div class="search-sort-bar">
+          <input type="text" id="searchInput" placeholder="🔍 Search media..." oninput="renderPlaylist()">
+          <select id="sortSelect" onchange="renderPlaylist()">
+            <option value="date-desc">Newest First</option>
+            <option value="date-asc">Oldest First</option>
+            <option value="name-asc">Name (A-Z)</option>
+            <option value="size-desc">Size (Largest)</option>
+          </select>
+        </div>
       </div>
+
+      <!-- Bulk Actions Bar -->
+      <div class="batch-actions-bar">
+        <label><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"> Select All</label>
+        <div class="batch-buttons">
+          <button onclick="batchDownloadSelected()">⬇ Download ZIP</button>
+          <button class="danger-btn" onclick="batchDeleteSelected()">🗑 Delete Selected</button>
+        </div>
+      </div>
+
       <ul id="mediaList" class="playlist"></ul>
     </section>
   </div>
